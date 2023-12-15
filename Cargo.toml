@@ -1,0 +1,26 @@
+[package]
+name = "ppio"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+once_cell = "1.17.1"
+serde = "1.0.152"
+serde_derive = "1.0.152"
+serde_json = "1.0.94"
+serde_repr = "0.1.12"
+redis_proto_parse = { version = "0.2.2", git = "https://github.com/Moonlight-Companies/redis_proto_parse.git" }
+reqwest = { version = "0.11.14", features = ["json"] }
+tracing = "0.1.37"
+tokio = { version = "1.28.0", features = ["full"] }
+async-trait = "0.1.68"
+futures = "0.3.28"
+tokio-util = { version = "0.7.9", features = ["rt"] } 
+anyhow = "1.0.75"
+kanal = "0.1.0-pre8"
+pin-utils = "0.1.0"
+pin-project-lite = "0.2.13"
+pin-project = "1.1.3"
+lock_api = "0.4.11"
