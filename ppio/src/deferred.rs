@@ -2,10 +2,6 @@ use std::{future::Future, pin::Pin, task};
 
 use pin_project_lite::pin_project;
 
-
-
-
-
 pub trait Defer<'s>: 's {
     type Future: Future + 's;
 
@@ -46,15 +42,11 @@ impl<'a, T: Defer<'a>> Future for DeferFuture<'a, T> {
     }
 }
 
-
-
-
-
-
 pub trait Undefer<'a>: Defer<'a> {
     type State;
 
-    fn undefer(fut: Pin<&mut Self::Future>) -> Option<Self::State>;
+    fn poll_undefer(fut: Pin<&mut Self::Future>, cx: &mut task::Context<'_>)
+        -> Option<Self::State>;
     fn update(self: Pin<&mut Self>, state: Self::State);
 }
 
@@ -79,7 +71,11 @@ impl<'a, T: Undefer<'a>> Future for UndeferFuture<'a, T> {
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
 
-        let state = proj.fut.as_mut().as_pin_mut().and_then(T::undefer);
+        let state = proj
+            .fut
+            .as_mut()
+            .as_pin_mut()
+            .and_then(|f| T::poll_undefer(f, cx));
 
         if proj.fut.is_none() || state.is_some() {
             // drop the old future
