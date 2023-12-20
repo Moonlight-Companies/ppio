@@ -58,5 +58,5 @@ async fn main() {
     let (greeter, rx) = poll(Greeter::default()).with_state(rx);
     let printer = push(rx).to_fn(|d| println!("{d:?}"));
 
-    all!(greeting, greeter, printer);
+    let _ = allt!(greeting, greeter, printer).await;
 }

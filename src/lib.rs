@@ -27,10 +27,10 @@ pub use tokio;
 
 #[macro_export]
 macro_rules! all {
-    ($($fut:expr),* $(,)?) => {
-        {
+    ($($fut:expr),+ $(,)?) => {
+        async move {
             tokio::select! {
-                $(err = async move { $fut.await } => err),*
+                $(err = async move { $fut.await } => err),+
             }
         }
     };
@@ -38,18 +38,18 @@ macro_rules! all {
 
 #[macro_export]
 macro_rules! allt {
-    ($($fut:expr),* $(,)?) => {
-        {
+    ($($fut:expr),+ $(,)?) => {
+        async move {
             tokio::select! {
                 $(
                     err = tokio::spawn(async move { $fut.await }) => {
                         match err {
                             Ok(err) => err, 
-                            Err(err) => Err(err.into()),
-                        };
+                            Err(err) => Err(anyhow::Error::from(err)),
+                        }
                     }
-                ),*
+                ),+
             }
-        }
+        };
     };
 }

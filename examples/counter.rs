@@ -1,5 +1,3 @@
-use std::future::IntoFuture;
-
 use async_trait::async_trait;
 use ppio::prelude::*;
 
@@ -24,15 +22,8 @@ impl Poll for Counter {
 
 #[tokio::main]
 async fn main() {
-    let (ctr, rx) = poll(Counter);
-    let dbg = push(rx).to_fn(|d| println!("{d:?}"));
+    let (counter, rx) = poll(Counter);
+    let debug = push(rx).to_fn(|d| println!("{d:?}"));
 
-    // multithread
-    // let _ = tokio::join!(
-    //     tokio::spawn(ctr.into_future()),
-    //     tokio::spawn(dbg.into_future())
-    // );
-
-    // single thread
-    let _ = tokio::join!(ctr.into_future(), dbg.into_future());
+    let _ = all!(counter, debug).await;
 }
