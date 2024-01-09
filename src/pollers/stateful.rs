@@ -63,7 +63,7 @@ impl<'a, P: Poll + State + 'a> Defer<'a> for Poller<P> {
 
         Fut {
             state_rx: proj.srx.as_ref().map(|s| s.recv()),
-            inner: proj.poller.poll(proj.tx.clone()),
+            inner: Box::pin(proj.poller.poll(proj.tx.clone())),
         }
     }
 }

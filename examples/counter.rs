@@ -1,10 +1,8 @@
-use async_trait::async_trait;
 use ppio::prelude::*;
 
 #[derive(Default)]
 pub struct Counter;
 
-#[async_trait]
 impl Poll for Counter {
     type Item = usize;
 

@@ -1,9 +1,7 @@
-use async_trait::async_trait;
 use ppio::prelude::*;
 
 struct Greeting;
 
-#[async_trait]
 impl Poll for Greeting {
     type Item = &'static str;
 
@@ -34,7 +32,6 @@ impl State for Greeter {
     }
 }
 
-#[async_trait]
 impl Poll for Greeter {
     type Item = &'static str;
 

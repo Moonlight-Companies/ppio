@@ -64,7 +64,7 @@ impl<'a, P: Push + 'a> Future for Fut<'a, P> {
                     // safety: this is safe since we follow the aliasing rules
                     //         and because the lifetime is effectively 'static ('a)
                     let fut = unsafe { extend(proj.pusher).push(item) };
-                    proj.inner.set(Some(Either::B(fut)));
+                    proj.inner.set(Some(Either::B(Box::pin(fut))));
                 }
                 Either::B(Ok(())) => {
                     // safety: same as above

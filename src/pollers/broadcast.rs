@@ -83,7 +83,7 @@ where
         proj.rx.replace(rx);
 
         Fut {
-            fut: proj.poller.poll(tx),
+            fut: Box::pin(proj.poller.poll(tx)),
             rx: proj.rx.take().unwrap(),
             tx: std::mem::take(proj.tx),
         }

@@ -39,6 +39,6 @@ impl<'a, P: Poll + 'a> Defer<'a> for Poller<P> {
     fn into_fut(self: Pin<&'a mut Self>) -> Self::Future {
         let proj = self.project();
 
-        proj.poller.poll(proj.tx.clone())
+        Box::pin(proj.poller.poll(proj.tx.clone()))
     }
 }
