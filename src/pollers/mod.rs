@@ -26,9 +26,9 @@ pub trait Upgrade<P: Poll> {
     where
         P::Item: Clone;
 
-    fn with_state(self, state_rx: Receiver<P::State>) -> (StatefulPoller<P>, Receiver<P::Item>)
+    fn with_state<S>(self, state_rx: Receiver<S>) -> (StatefulPoller<S, P>, Receiver<P::Item>)
     where
-        P: State;
+        P: State<S>;
 }
 
 impl<P: Poll> Upgrade<P> for (Poller<P>, Receiver<P::Item>) {
@@ -48,9 +48,9 @@ impl<P: Poll> Upgrade<P> for (Poller<P>, Receiver<P::Item>) {
         (BroadcastPoller::new(p, txs), rxs)
     }
 
-    fn with_state(self, state_rx: Receiver<P::State>) -> (StatefulPoller<P>, Receiver<P::Item>)
+    fn with_state<S>(self, state_rx: Receiver<S>) -> (StatefulPoller<S, P>, Receiver<P::Item>)
     where
-        P: State,
+        P: State<S>,
     {
         let p = self.0.take_poller();
 

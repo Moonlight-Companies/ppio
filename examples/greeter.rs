@@ -24,10 +24,8 @@ impl Poll for Greeting {
 #[derive(Default)]
 struct Greeter(Option<&'static str>);
 
-impl State for Greeter {
-    type State = &'static str;
-
-    fn update(&mut self, state: Self::State) {
+impl State<&'static str> for Greeter {
+    fn update(&mut self, state: &'static str) {
         self.0 = Some(state);
     }
 }

@@ -10,14 +10,14 @@ use crate::channel::{Receiver, Sender};
 use crate::io::{Poll, PollOutput, State};
 use crate::util::as_static_mut;
 
-pub struct Poller<P: Poll + State> {
+pub struct Poller<S, P: Poll + State<S>> {
     poller: P,
-    recver: Receiver<P::State>,
+    recver: Receiver<S>,
     sender: Sender<P::Item>,
 }
 
-impl<P: Poll + State> Poller<P> {
-    pub(super) fn new(poller: P, tx: Sender<P::Item>, srx: Receiver<P::State>) -> Self {
+impl<S, P: Poll + State<S>> Poller<S, P> {
+    pub(super) fn new(poller: P, tx: Sender<P::Item>, srx: Receiver<S>) -> Self {
         Self {
             poller,
             recver: srx,
@@ -26,9 +26,9 @@ impl<P: Poll + State> Poller<P> {
     }
 }
 
-impl<P: Poll + State + 'static> IntoFuture for Poller<P> {
+impl<S, P: Poll + State<S> + 'static> IntoFuture for Poller<S, P> {
     type Output = PollOutput;
-    type IntoFuture = Fut<P>;
+    type IntoFuture = Fut<S, P>;
 
     fn into_future(self) -> Self::IntoFuture {
         Fut {
@@ -41,20 +41,20 @@ impl<P: Poll + State + 'static> IntoFuture for Poller<P> {
 }
 
 pin_project! {
-    pub struct Fut<P: Poll>
+    pub struct Fut<S, P: Poll>
     where
-        P: State,
+        P: State<S>,
     {
         #[pin]
         fut: Option<BoxFuture<'static, PollOutput>>,
         #[pin]
-        recver: Receiver<P::State>,
+        recver: Receiver<S>,
         poller: P,
         sender: Sender<P::Item>
     }
 }
 
-impl<P: Poll + State + 'static> Future for Fut<P> {
+impl<S, P: Poll + State<S> + 'static> Future for Fut<S, P> {
     type Output = Result<Infallible, anyhow::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {

@@ -10,10 +10,8 @@ use crate::pushers::EmptyPusher;
 pub type PollOutput = anyhow::Result<Infallible>;
 pub type PushOutput = anyhow::Result<()>;
 
-pub trait State {
-    type State;
-
-    fn update(&mut self, state: Self::State);
+pub trait State<T> {
+    fn update(&mut self, state: T);
 }
 
 pub trait Poll {
