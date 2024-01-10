@@ -30,11 +30,8 @@ pub fn poll<P: Poll>(p: impl IntoPoller<P>) -> (Poller<P>, Receiver<P::Item>) {
     (Poller::new(p.into(), tx), rx)
 }
 
-pub trait Push {
-    /// The item the pusher is receiving
-    type Item: Send;
-
-    fn push(&mut self, item: Self::Item) -> impl Future<Output = PushOutput> + Send + '_;
+pub trait Push<T> {
+    fn push(&mut self, item: T) -> impl Future<Output = PushOutput> + Send + '_;
 }
 
 pub fn push<T>(rx: Receiver<T>) -> (EmptyPusher, Receiver<T>) {

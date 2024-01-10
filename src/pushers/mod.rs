@@ -1,5 +1,5 @@
 use crate::channel::Receiver;
-use crate::io::{Push, PushOutput};
+use crate::io::Push;
 
 pub use basic::Pusher;
 pub use function::Pusher as FunctionPusher;
@@ -18,25 +18,15 @@ impl<P> IntoPusher<P> for P {
     }
 }
 
-impl<T: Send, U> Push for fn(T) -> U {
-    type Item = T;
-
-    async fn push(&mut self, item: Self::Item) -> PushOutput {
-        self(item);
-
-        Ok(())
-    }
-}
-
 pub struct EmptyPusher;
 
 pub trait To<T> {
-    fn to<P: Push<Item = T>>(self, p: P) -> Pusher<P>;
+    fn to<P: Push<T>>(self, p: P) -> Pusher<T, P>;
     fn to_fn<F: Fn(T)>(self, p: F) -> FunctionPusher<T, F>;
 }
 
 impl<T> To<T> for (EmptyPusher, Receiver<T>) {
-    fn to<P: Push<Item = T>>(self, p: P) -> Pusher<P> {
+    fn to<P: Push<T>>(self, p: P) -> Pusher<T, P> {
         Pusher::new(p, self.1)
     }
     fn to_fn<F: Fn(T)>(self, p: F) -> FunctionPusher<T, F> {

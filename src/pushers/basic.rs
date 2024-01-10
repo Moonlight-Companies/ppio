@@ -10,20 +10,20 @@ use crate::channel::{Receiver, RecvError};
 use crate::io::{PollOutput, Push, PushOutput};
 use crate::util::as_static_mut;
 
-pub struct Pusher<P: Push> {
-    rx: Receiver<P::Item>,
+pub struct Pusher<T, P: Push<T>> {
+    rx: Receiver<T>,
     pusher: P,
 }
 
-impl<P: Push> Pusher<P> {
-    pub fn new(pusher: P, rx: Receiver<P::Item>) -> Self {
+impl<T, P: Push<T>> Pusher<T, P> {
+    pub fn new(pusher: P, rx: Receiver<T>) -> Self {
         Self { rx, pusher }
     }
 }
 
-impl<P: Push + 'static> IntoFuture for Pusher<P> {
+impl<T, P: Push<T> + 'static> IntoFuture for Pusher<T, P> {
     type Output = PollOutput;
-    type IntoFuture = Fut<P>;
+    type IntoFuture = Fut<T, P>;
 
     fn into_future(self) -> Self::IntoFuture {
         Fut {
@@ -35,16 +35,16 @@ impl<P: Push + 'static> IntoFuture for Pusher<P> {
 }
 
 pin_project! {
-    pub struct Fut<P: Push> {
+    pub struct Fut<T, P: Push<T>> {
         #[pin]
         fut: Option<BoxFuture<'static, PushOutput>>,
         #[pin]
-        recver: Receiver<P::Item>,
+        recver: Receiver<T>,
         pusher: P,
     }
 }
 
-impl<P: Push + 'static> Future for Fut<P> {
+impl<T, P: Push<T> + 'static> Future for Fut<T, P> {
     type Output = Result<Infallible, anyhow::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
