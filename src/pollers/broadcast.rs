@@ -6,7 +6,7 @@ use futures::future::BoxFuture;
 use futures::Stream;
 use pin_project_lite::pin_project;
 
-use crate::chan::{bounded, Receiver, SendError, Sender};
+use crate::channel::{bounded, Receiver, SendError, Sender};
 use crate::io::{Poll, PollOutput};
 use crate::util::as_static_mut;
 

@@ -5,7 +5,7 @@ use std::{future::Future, pin::Pin, task};
 use futures::future::BoxFuture;
 use pin_project_lite::pin_project;
 
-use crate::chan::Sender;
+use crate::channel::Sender;
 use crate::io::{Poll, PollOutput};
 use crate::util::as_static_mut;
 

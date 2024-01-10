@@ -4,7 +4,7 @@ use std::{future::Future, pin::Pin, task, task::Poll::*};
 use futures::Stream;
 use pin_project_lite::pin_project;
 
-use crate::chan::{Receiver, RecvError};
+use crate::channel::{Receiver, RecvError};
 use crate::prelude::PollOutput;
 
 pub struct Pusher<T, F: Fn(T)> {

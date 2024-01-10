@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use futures::Future;
 
-use crate::chan::{unbounded, Receiver, Sender};
+use crate::channel::{unbounded, Receiver, self};
 use crate::pollers::{IntoPoller, Poller};
 use crate::pushers::EmptyPusher;
 
@@ -21,7 +21,7 @@ pub trait Poll {
     type Item: Send;
 
     /// Poll function
-    fn poll(&mut self, tx: Sender<Self::Item>) -> impl Future<Output = PollOutput> + Send + '_;
+    fn poll(&mut self, tx: channel::Sender<Self::Item>) -> impl Future<Output = PollOutput> + Send + '_;
 }
 
 pub fn poll<P: Poll>(p: impl IntoPoller<P>) -> (Poller<P>, Receiver<P::Item>) {

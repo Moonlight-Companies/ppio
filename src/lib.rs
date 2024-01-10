@@ -5,14 +5,13 @@ mod pushers;
 
 mod util;
 
-mod chan {
+pub mod channel {
     pub use async_channel::{
         bounded, unbounded, Receiver, Recv, RecvError, Send, SendError, Sender,
     };
 }
 
 pub mod prelude {
-    pub use crate::chan::*;
     pub use crate::io::*;
     pub use crate::pollers::*;
     pub use crate::pushers::*;

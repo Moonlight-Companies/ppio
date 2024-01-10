@@ -1,4 +1,4 @@
-use crate::chan::{bounded, unbounded, Receiver};
+use crate::channel::{bounded, unbounded, Receiver};
 use crate::io::{Poll, State};
 
 pub use basic::Poller;

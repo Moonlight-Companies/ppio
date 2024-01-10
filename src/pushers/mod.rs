@@ -1,4 +1,4 @@
-use crate::chan::Receiver;
+use crate::channel::Receiver;
 use crate::io::{Push, PushOutput};
 
 pub use basic::Pusher;
