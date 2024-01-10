@@ -1,14 +1,14 @@
 use std::convert::Infallible;
 use std::future::IntoFuture;
-use std::{future::Future, pin::Pin, task};
+use std::{future::Future, pin::Pin, task, task::Poll::*};
 
 use futures::future::BoxFuture;
-use kanal::ReceiveFuture;
+use futures::Stream;
 use pin_project_lite::pin_project;
 
-use crate::chan::Receiver;
-use crate::fut::{extend, Either};
+use crate::chan::{Receiver, RecvError};
 use crate::io::{PollOutput, Push, PushOutput};
+use crate::util::as_static_mut;
 
 pub struct Pusher<P: Push> {
     rx: Receiver<P::Item>,
@@ -23,57 +23,45 @@ impl<P: Push> Pusher<P> {
 
 impl<P: Push + 'static> IntoFuture for Pusher<P> {
     type Output = PollOutput;
-    type IntoFuture = Fut<'static, P>;
+    type IntoFuture = Fut<P>;
 
     fn into_future(self) -> Self::IntoFuture {
         Fut {
-            inner: None,
-            rx: self.rx,
+            fut: None,
+            recver: self.rx,
             pusher: self.pusher,
         }
     }
 }
 
-type FutFut<'a, T> = Either<ReceiveFuture<'a, T>, BoxFuture<'a, PushOutput>>;
-
 pin_project! {
-    pub struct Fut<'a, P: Push> {
+    pub struct Fut<P: Push> {
         #[pin]
-        inner: Option<FutFut<'a, P::Item>>,
-        rx: Receiver<P::Item>,
+        fut: Option<BoxFuture<'static, PushOutput>>,
+        #[pin]
+        recver: Receiver<P::Item>,
         pusher: P,
     }
 }
 
-impl<'a, P: Push + 'a> Future for Fut<'a, P> {
+impl<P: Push + 'static> Future for Fut<P> {
     type Output = Result<Infallible, anyhow::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
 
-        loop {
-            let res = match proj.inner.as_mut().as_pin_mut() {
-                // poll the inner future
-                Some(mut inner) => futures::ready!(inner.as_mut().poll(cx)),
-                // simulate getting Ok(()) from the pusher, so we set up recv-ing
-                None => Either::B(Ok(())),
-            };
+        if let Some(fut) = proj.fut.as_mut().as_pin_mut() {
+            futures::ready!(fut.poll(cx)?)
+        }
 
-            match res {
-                Either::A(Ok(item)) => {
-                    // safety: this is safe since we follow the aliasing rules
-                    //         and because the lifetime is effectively 'static ('a)
-                    let fut = unsafe { extend(proj.pusher).push(item) };
-                    proj.inner.set(Some(Either::B(Box::pin(fut))));
-                }
-                Either::B(Ok(())) => {
-                    // safety: same as above
-                    let fut = unsafe { extend(proj.rx).recv() };
-                    proj.inner.set(Some(Either::A(fut)));
-                }
-                Either::A(Err(err)) => return task::Poll::Ready(Err(err.into())),
-                Either::B(Err(err)) => return task::Poll::Ready(Err(err)),
-            };
+        if let Some(item) = futures::ready!(proj.recver.poll_next(cx)) {
+            let pusher = unsafe { as_static_mut(proj.pusher) };
+
+            proj.fut.set(Some(Box::pin(pusher.push(item))));
+            cx.waker().wake_by_ref();
+            Pending
+        } else {
+            Ready(Err(RecvError.into()))
         }
     }
 }

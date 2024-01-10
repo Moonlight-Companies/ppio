@@ -1,92 +1,81 @@
+use std::convert::Infallible;
 use std::future::IntoFuture;
-use std::{future::Future, pin::Pin, task};
+use std::{future::Future, pin::Pin, task, task::Poll::*};
 
 use futures::future::BoxFuture;
+use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::chan::{Receiver, Sender};
-use crate::deferred::{Defer, Undefer, UndeferFuture};
 use crate::io::{Poll, PollOutput, State};
+use crate::util::as_static_mut;
 
-pin_project! {
-    pub struct Poller<P: Poll>
-    where
-        P: State
-    {
-        poller: P,
-        srx: Option<Receiver<P::State>>,
-        tx: Sender<P::Item>,
-    }
+pub struct Poller<P: Poll + State> {
+    poller: P,
+    recver: Receiver<P::State>,
+    sender: Sender<P::Item>,
 }
 
 impl<P: Poll + State> Poller<P> {
     pub(super) fn new(poller: P, tx: Sender<P::Item>, srx: Receiver<P::State>) -> Self {
         Self {
             poller,
-            srx: Some(srx),
-            tx,
+            recver: srx,
+            sender: tx,
         }
     }
 }
 
 impl<P: Poll + State + 'static> IntoFuture for Poller<P> {
     type Output = PollOutput;
-    type IntoFuture = UndeferFuture<'static, Poller<P>>;
+    type IntoFuture = Fut<P>;
 
     fn into_future(self) -> Self::IntoFuture {
-        UndeferFuture::new(self)
+        Fut {
+            fut: None,
+            recver: self.recver,
+            poller: self.poller,
+            sender: self.sender,
+        }
     }
 }
 
 pin_project! {
-    pub struct Fut<'a, T> {
+    pub struct Fut<P: Poll>
+    where
+        P: State,
+    {
         #[pin]
-        state_rx: Option<kanal::ReceiveFuture<'a, T>>,
+        fut: Option<BoxFuture<'static, PollOutput>>,
         #[pin]
-        inner: BoxFuture<'a, PollOutput>
+        recver: Receiver<P::State>,
+        poller: P,
+        sender: Sender<P::Item>
     }
 }
 
-impl<'a, T> Future for Fut<'a, T> {
-    type Output = PollOutput;
+impl<P: Poll + State + 'static> Future for Fut<P> {
+    type Output = Result<Infallible, anyhow::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-        self.project().inner.poll(cx)
-    }
-}
+        let mut proj = self.project();
 
-impl<'a, P: Poll + State + 'a> Defer<'a> for Poller<P> {
-    type Future = Fut<'a, P::State>;
-
-    fn into_fut(self: Pin<&'a mut Self>) -> Self::Future {
-        let proj = self.project();
-
-        Fut {
-            state_rx: proj.srx.as_ref().map(|s| s.recv()),
-            inner: Box::pin(proj.poller.poll(proj.tx.clone())),
+        match proj.recver.poll_next(cx) {
+            Ready(Some(state)) => {
+                proj.fut.set(None);
+                proj.poller.update(state);
+            },
+            Ready(None) => todo!(),
+            _ => (),
         }
-    }
-}
 
-impl<'a, P: Poll + State + 'a> Undefer<'a> for Poller<P> {
-    type State = Result<P::State, kanal::ReceiveError>;
+        if proj.fut.is_none() {
+            let poller = unsafe { as_static_mut(proj.poller) };
+            let fut = poller.poll(proj.sender.clone());
 
-    fn poll_undefer(
-        fut: Pin<&mut Self::Future>,
-        cx: &mut task::Context<'_>,
-    ) -> Option<Self::State> {
-        match fut.project().state_rx.as_pin_mut()?.poll(cx) {
-            task::Poll::Ready(item) => Some(item),
-            _ => None,
+            proj.fut.set(Some(Box::pin(fut)));
         }
-    }
 
-    fn update(self: Pin<&mut Self>, state: Self::State) {
-        let proj = self.project();
-
-        match state {
-            Ok(inc) => proj.poller.update(inc),
-            Err(_) => *proj.srx = None,
-        }
+        proj.fut.as_pin_mut().unwrap().poll(cx)
     }
 }

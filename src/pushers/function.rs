@@ -1,68 +1,55 @@
 use std::future::IntoFuture;
-use std::{future::Future, pin::Pin, task};
+use std::{future::Future, pin::Pin, task, task::Poll::*};
 
 use futures::Stream;
-use kanal::{ReceiveError, ReceiveStream};
 use pin_project_lite::pin_project;
 
-use crate::chan::Receiver;
-use crate::fut::extend;
+use crate::chan::{Receiver, RecvError};
 use crate::prelude::PollOutput;
 
-pub struct Pusher<F: Fn(T), T> {
-    rx: Receiver<T>,
+pub struct Pusher<T, F: Fn(T)> {
+    recver: Receiver<T>,
     func: F,
 }
 
-impl<F: Fn(T), T> Pusher<F, T> {
+impl<T, F: Fn(T)> Pusher<T, F> {
     pub fn new(func: F, rx: Receiver<T>) -> Self {
-        Self { rx, func }
+        Self { recver: rx, func }
     }
 }
 
-impl<F: Fn(T) + 'static, T: 'static> IntoFuture for Pusher<F, T> {
+impl<T, F: Fn(T)> IntoFuture for Pusher<T, F> {
     type Output = PollOutput;
-    type IntoFuture = Fut<'static, F, T>;
+    type IntoFuture = Fut<T, F>;
 
     fn into_future(self) -> Self::IntoFuture {
         Fut {
-            inner: None,
-            rx: self.rx,
+            rx: self.recver,
             func: self.func,
         }
     }
 }
 
 pin_project! {
-    pub struct Fut<'a, F: Fn(T), T> {
+    pub struct Fut<T, F: Fn(T)> {
         #[pin]
-        inner: Option<ReceiveStream<'a, T>>,
         rx: Receiver<T>,
         func: F,
     }
 }
 
-impl<'a, F: Fn(T), T> Future for Fut<'a, F, T> {
+impl<T, F: Fn(T)> Future for Fut<T, F> {
     type Output = PollOutput;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-        let mut proj = self.project();
+        let proj = self.project();
 
-        let fut = match proj.inner.as_mut().as_pin_mut() {
-            Some(fut) => fut,
-            None => {
-                let fut = unsafe { extend(proj.rx).stream() };
-                proj.inner.set(Some(fut));
-                proj.inner.as_mut().as_pin_mut().unwrap()
-            }
-        };
-
-        if let Some(item) = futures::ready!(fut.poll_next(cx)) {
+        if let Some(item) = futures::ready!(proj.rx.poll_next(cx)) {
             (proj.func)(item);
             cx.waker().wake_by_ref();
-            task::Poll::Pending
+            Pending
         } else {
-            task::Poll::Ready(Err(ReceiveError::Closed.into()))
+            Ready(Err(RecvError.into()))
         }
     }
 }

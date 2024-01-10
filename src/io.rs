@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use futures::Future;
 
 use crate::chan::{unbounded, Receiver, Sender};
@@ -5,7 +7,7 @@ use crate::pollers::{IntoPoller, Poller};
 use crate::pushers::EmptyPusher;
 
 // bikeshed
-pub type PollOutput = anyhow::Result<std::convert::Infallible>;
+pub type PollOutput = anyhow::Result<Infallible>;
 pub type PushOutput = anyhow::Result<()>;
 
 pub trait State {
@@ -15,7 +17,7 @@ pub trait State {
 }
 
 pub trait Poll {
-    /// The type that you are sending to the rest of the app
+    /// What you are sending to the rest of the app
     type Item: Send;
 
     /// Poll function
@@ -29,19 +31,10 @@ pub fn poll<P: Poll>(p: impl IntoPoller<P>) -> (Poller<P>, Receiver<P::Item>) {
 }
 
 pub trait Push {
+    /// The item the pusher is receiving
     type Item: Send;
 
     fn push(&mut self, item: Self::Item) -> impl Future<Output = PushOutput> + Send + '_;
-}
-
-impl<T: Send, U> Push for fn(T) -> U {
-    type Item = T;
-
-    async fn push(&mut self, item: Self::Item) -> PushOutput {
-        self(item);
-
-        Ok(())
-    }
 }
 
 pub fn push<T>(rx: Receiver<T>) -> (EmptyPusher, Receiver<T>) {

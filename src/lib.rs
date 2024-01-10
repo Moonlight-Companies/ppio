@@ -3,14 +3,12 @@ mod io;
 mod pollers;
 mod pushers;
 
-mod deferred;
-mod fut;
+mod util;
 
 mod chan {
-    pub use kanal::bounded_async as bounded;
-    pub use kanal::unbounded_async as unbounded;
-    pub use kanal::AsyncReceiver as Receiver;
-    pub use kanal::AsyncSender as Sender;
+    pub use async_channel::{
+        bounded, unbounded, Receiver, Recv, RecvError, Send, SendError, Sender,
+    };
 }
 
 pub mod prelude {
@@ -29,7 +27,8 @@ pub use tokio;
 macro_rules! all {
     ($($fut:expr),+ $(,)?) => {
         async move {
-            tokio::select! {
+            $crate::tokio::select! {
+                biased;
                 $(err = async move { $fut.await } => err),+
             }
         }
@@ -40,11 +39,12 @@ macro_rules! all {
 macro_rules! allt {
     ($($fut:expr),+ $(,)?) => {
         async move {
-            tokio::select! {
+            $crate::tokio::select! {
+                biased;
                 $(
                     err = tokio::spawn(async move { $fut.await }) => {
                         match err {
-                            Ok(err) => err, 
+                            Ok(err) => err,
                             Err(err) => Err(anyhow::Error::from(err)),
                         }
                     }

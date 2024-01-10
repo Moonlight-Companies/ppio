@@ -51,9 +51,11 @@ impl Poll for Greeter {
 
 #[tokio::main]
 async fn main() {
-    let (greeting, rx) = poll(Greeting);
-    let (greeter, rx) = poll(Greeter::default()).with_state(rx);
-    let printer = push(rx).to_fn(|d| println!("{d:?}"));
+    let (greeting, [str, announcer]) = poll(Greeting).broadcast();
+    let announcer = push(announcer).to_fn(|str| println!("got new str: {str}"));
 
-    let _ = allt!(greeting, greeter, printer).await;
+    let (greeter, rx) = poll(Greeter::default()).with_state(str);
+    let printer = push(rx).to_fn(|d| println!("{d}"));
+
+    let _ = all!(greeting, announcer, greeter, printer).await;
 }
