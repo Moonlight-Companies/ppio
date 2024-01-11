@@ -23,6 +23,7 @@ pub mod prelude {
 }
 
 /// wraps anyhow::Error to allow the macro to determine whether the error should bubble up
+#[derive(Debug)]
 pub enum Error {
     Internal(anyhow::Error),
     User(anyhow::Error),
