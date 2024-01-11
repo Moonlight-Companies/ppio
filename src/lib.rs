@@ -28,6 +28,15 @@ pub enum Error {
     User(anyhow::Error),
 }
 
+impl Error {
+    pub fn inner(self) -> anyhow::Error {
+        match self {
+            Self::Internal(e) => e,
+            Self::User(e) => e,
+        }
+    }
+}
+
 pub mod macro_helpers {
     use std::future::Future;
     use std::convert::Infallible;
