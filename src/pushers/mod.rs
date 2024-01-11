@@ -10,11 +10,11 @@ mod function;
 mod stateful;
 
 pub trait IntoPusher<P> {
-    fn into(self) -> P;
+    fn into_poller(self) -> P;
 }
 
 impl<P> IntoPusher<P> for P {
-    fn into(self) -> P {
+    fn into_poller(self) -> P {
         self
     }
 }

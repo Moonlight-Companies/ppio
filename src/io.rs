@@ -25,7 +25,7 @@ pub trait Poll {
 pub fn poll<P: Poll>(p: impl IntoPoller<P>) -> (Poller<P>, Receiver<P::Item>) {
     let (tx, rx) = unbounded();
 
-    (Poller::new(p.into(), tx), rx)
+    (Poller::new(p.into_poller(), tx), rx)
 }
 
 pub trait Push<T> {
