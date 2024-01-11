@@ -56,7 +56,7 @@ pub mod macro_helpers {
             async move {
                 $crate::macro_helpers::tokio::select! {
                     biased;
-                    $(Err($crate::Error::User(err)) = async move { $fut.await } => err),+
+                    $(Err($crate::Error::User(err)) = async move { $fut.await } => anyhow::Result::<Infallible, _>::Err(err)),+
                 }
             }
         };
@@ -68,7 +68,7 @@ pub mod macro_helpers {
             async move {
                 $crate::macro_helpers::tokio::select! {
                     biased;
-                    $(Err($crate::Error::User(err)) = $crate::macro_helpers::internal_spawn(async move { $fut.await }) => err),+
+                    $(Err($crate::Error::User(err)) = $crate::macro_helpers::internal_spawn(async move { $fut.await }) => anyhow::Result::<Infallible, _>::Err(err)),+
                 }
             };
         };
