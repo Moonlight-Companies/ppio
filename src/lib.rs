@@ -67,6 +67,7 @@ pub mod macro_helpers {
                 $crate::macro_helpers::tokio::select! {
                     biased;
                     $(Err($crate::Error::User(err)) = async move { $fut.await } => Result::<Infallible, _>::Err($crate::Error::User(err))),+
+                    , else => Err($crate::Error::Internal(anyhow::anyhow!("no user errors reported, but all tasks failed")))
                 }
             }
         };
@@ -79,6 +80,7 @@ pub mod macro_helpers {
                 $crate::macro_helpers::tokio::select! {
                     biased;
                     $(Err($crate::Error::User(err)) = $crate::macro_helpers::internal_spawn(async move { $fut.await }) => Result::<Infallible, _>::Err($crate::Error::User(err))),+
+                    , else => Err($crate::Error::Internal(anyhow::anyhow!("no user errors reported, but all tasks failed")))
                 }
             };
         };
