@@ -6,7 +6,7 @@ use futures::future::BoxFuture;
 use futures::Stream;
 use pin_project_lite::pin_project;
 
-use crate::channel::{Receiver, Sender};
+use crate::channel::{Receiver, Sender, RecvError};
 use crate::io::{Poll, PollOutput, State};
 use crate::util::as_static_mut;
 
@@ -65,7 +65,7 @@ impl<S, P: Poll + State<S> + 'static> Future for Fut<S, P> {
                 proj.fut.set(None);
                 proj.poller.update(state);
             },
-            Ready(None) => todo!(),
+            Ready(None) => return Ready(Err(RecvError.into())),
             _ => (),
         }
 
