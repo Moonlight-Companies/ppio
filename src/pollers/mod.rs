@@ -21,7 +21,7 @@ impl<P: Poll> IntoPoller<P> for P {
     }
 }
 
-pub trait Upgrade<P: Poll> {
+pub trait UpgradePoller<P: Poll> {
     fn broadcast<const C: usize>(self) -> (BroadcastPoller<P>, [Receiver<P::Item>; C])
     where
         P::Item: Clone;
@@ -31,7 +31,7 @@ pub trait Upgrade<P: Poll> {
         P: State<S>;
 }
 
-impl<P: Poll> Upgrade<P> for (Poller<P>, Receiver<P::Item>) {
+impl<P: Poll> UpgradePoller<P> for (Poller<P>, Receiver<P::Item>) {
     fn broadcast<const C: usize>(self) -> (BroadcastPoller<P>, [Receiver<P::Item>; C])
     where
         P::Item: Clone,

@@ -7,55 +7,69 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::channel::{Receiver, RecvError};
-use crate::io::{PollOutput, Push, PushOutput};
+use crate::io::{PollOutput, Push, PushOutput, State};
 use crate::util::as_static_mut;
 
-pub struct Pusher<T, P: Push<T>> {
+pub struct Pusher<T, S, P> {
     recver: Receiver<T>,
+    state_recver: Receiver<S>,
     pusher: P,
 }
 
-impl<T, P: Push<T>> Pusher<T, P> {
-    pub fn new(pusher: P, rx: Receiver<T>) -> Self {
-        Self { recver: rx, pusher }
-    }
-
-    pub fn take_parts(self) -> (Receiver<T>, P) {
-        (self.recver, self.pusher)
+impl<T, S, P> Pusher<T, S, P> {
+    pub fn new(pusher: P, rx: Receiver<T>, srx: Receiver<S>) -> Self {
+        Self { recver: rx, state_recver: srx, pusher }
     }
 }
 
-impl<T, P: Push<T> + 'static> IntoFuture for Pusher<T, P> {
+impl<T, S, P: Push<T> + State<S> + 'static> IntoFuture for Pusher<T, S, P> {
     type Output = PollOutput;
-    type IntoFuture = Fut<T, P>;
+    type IntoFuture = Fut<T, S, P>;
 
     fn into_future(self) -> Self::IntoFuture {
         Fut {
             fut: None,
             recver: self.recver,
+            state_recver: self.state_recver,
             pusher: self.pusher,
         }
     }
 }
 
 pin_project! {
-    pub struct Fut<T, P: Push<T>> {
+    pub struct Fut<T, S, P: Push<T>>
+    where
+        P: State<S>,
+    {
         #[pin]
         fut: Option<BoxFuture<'static, PushOutput>>,
         #[pin]
         recver: Receiver<T>,
+        #[pin]
+        state_recver: Receiver<S>,
         pusher: P,
     }
 }
 
-impl<T, P: Push<T> + 'static> Future for Fut<T, P> {
+impl<T, S, P: Push<T> + State<S> + 'static> Future for Fut<T, S, P> {
     type Output = Result<Infallible, anyhow::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
 
         if let Some(fut) = proj.fut.as_mut().as_pin_mut() {
-            futures::ready!(fut.poll(cx)?)
+            futures::ready!(fut.poll(cx)?);
+            proj.fut.set(None);
+        }
+
+        loop {
+            match proj.state_recver.as_mut().poll_next(cx) {
+                Ready(Some(state)) => {
+                    proj.pusher.update(state);
+                }
+                Ready(None) => return Ready(Err(RecvError.into())),
+                Pending => break,
+            }
         }
 
         if let Some(item) = futures::ready!(proj.recver.poll_next(cx)) {
