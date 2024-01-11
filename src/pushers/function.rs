@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::future::IntoFuture;
 use std::{future::Future, pin::Pin, task, task::Poll::*};
 
@@ -5,7 +6,7 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::channel::{Receiver, RecvError};
-use crate::prelude::PollOutput;
+use crate::Error::*;
 
 pub struct Pusher<T, F: Fn(T)> {
     recver: Receiver<T>,
@@ -19,7 +20,7 @@ impl<T, F: Fn(T)> Pusher<T, F> {
 }
 
 impl<T, F: Fn(T)> IntoFuture for Pusher<T, F> {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
     type IntoFuture = Fut<T, F>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -39,7 +40,7 @@ pin_project! {
 }
 
 impl<T, F: Fn(T)> Future for Fut<T, F> {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let proj = self.project();
@@ -49,7 +50,7 @@ impl<T, F: Fn(T)> Future for Fut<T, F> {
             cx.waker().wake_by_ref();
             Pending
         } else {
-            Ready(Err(RecvError.into()))
+            Ready(Err(Internal(RecvError.into())))
         }
     }
 }

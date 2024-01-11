@@ -7,7 +7,8 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::channel::{Receiver, RecvError};
-use crate::io::{PollOutput, Push, PushOutput, State};
+use crate::Error::*;
+use crate::io::{Push, State};
 use crate::util::as_static_mut;
 
 pub struct Pusher<T, S, P> {
@@ -23,7 +24,7 @@ impl<T, S, P> Pusher<T, S, P> {
 }
 
 impl<T, S, P: Push<T> + State<S> + 'static> IntoFuture for Pusher<T, S, P> {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
     type IntoFuture = Fut<T, S, P>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -42,7 +43,7 @@ pin_project! {
         P: State<S>,
     {
         #[pin]
-        fut: Option<BoxFuture<'static, PushOutput>>,
+        fut: Option<BoxFuture<'static, anyhow::Result<()>>>,
         #[pin]
         recver: Receiver<T>,
         #[pin]
@@ -52,13 +53,13 @@ pin_project! {
 }
 
 impl<T, S, P: Push<T> + State<S> + 'static> Future for Fut<T, S, P> {
-    type Output = Result<Infallible, anyhow::Error>;
+    type Output = Result<Infallible, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
 
         if let Some(fut) = proj.fut.as_mut().as_pin_mut() {
-            futures::ready!(fut.poll(cx)?);
+            futures::ready!(fut.poll(cx).map_err(User)?);
             proj.fut.set(None);
         }
 
@@ -67,7 +68,7 @@ impl<T, S, P: Push<T> + State<S> + 'static> Future for Fut<T, S, P> {
                 Ready(Some(state)) => {
                     proj.pusher.update(state);
                 }
-                Ready(None) => return Ready(Err(RecvError.into())),
+                Ready(None) => return Ready(Err(Internal(RecvError.into()))),
                 Pending => break,
             }
         }
@@ -79,7 +80,7 @@ impl<T, S, P: Push<T> + State<S> + 'static> Future for Fut<T, S, P> {
             cx.waker().wake_by_ref();
             Pending
         } else {
-            Ready(Err(RecvError.into()))
+            Ready(Err(Internal(RecvError.into())))
         }
     }
 }

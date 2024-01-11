@@ -6,7 +6,8 @@ use futures::future::BoxFuture;
 use pin_project_lite::pin_project;
 
 use crate::channel::Sender;
-use crate::io::{Poll, PollOutput};
+use crate::io::Poll;
+use crate::Error::*;
 use crate::util::as_static_mut;
 
 pub struct Poller<P: Poll> {
@@ -25,7 +26,7 @@ impl<P: Poll> Poller<P> {
 }
 
 impl<P: Poll + 'static> IntoFuture for Poller<P> {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
     type IntoFuture = Fut<P>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -40,14 +41,14 @@ impl<P: Poll + 'static> IntoFuture for Poller<P> {
 pin_project! {
     pub struct Fut<P: Poll> {
         #[pin]
-        fut: Option<BoxFuture<'static, PollOutput>>,
+        fut: Option<BoxFuture<'static, anyhow::Result<Infallible>>>,
         poller: P,
         sender: Sender<P::Item>
     }
 }
 
 impl<P: Poll + 'static> Future for Fut<P> {
-    type Output = Result<Infallible, anyhow::Error>;
+    type Output = Result<Infallible, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
@@ -59,6 +60,6 @@ impl<P: Poll + 'static> Future for Fut<P> {
             proj.fut.set(Some(Box::pin(fut)));
         }
 
-        proj.fut.as_pin_mut().unwrap().poll(cx)
+        proj.fut.as_pin_mut().unwrap().poll(cx).map_err(User)
     }
 }

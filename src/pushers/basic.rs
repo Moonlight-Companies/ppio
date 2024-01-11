@@ -7,7 +7,8 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::channel::{Receiver, RecvError};
-use crate::io::{PollOutput, Push, PushOutput};
+use crate::Error::*;
+use crate::io::Push;
 use crate::util::as_static_mut;
 
 pub struct Pusher<T, P: Push<T>> {
@@ -26,7 +27,7 @@ impl<T, P: Push<T>> Pusher<T, P> {
 }
 
 impl<T, P: Push<T> + 'static> IntoFuture for Pusher<T, P> {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
     type IntoFuture = Fut<T, P>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -41,7 +42,7 @@ impl<T, P: Push<T> + 'static> IntoFuture for Pusher<T, P> {
 pin_project! {
     pub struct Fut<T, P: Push<T>> {
         #[pin]
-        fut: Option<BoxFuture<'static, PushOutput>>,
+        fut: Option<BoxFuture<'static, anyhow::Result<()>>>,
         #[pin]
         recver: Receiver<T>,
         pusher: P,
@@ -49,13 +50,13 @@ pin_project! {
 }
 
 impl<T, P: Push<T> + 'static> Future for Fut<T, P> {
-    type Output = Result<Infallible, anyhow::Error>;
+    type Output = Result<Infallible, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
 
         if let Some(fut) = proj.fut.as_mut().as_pin_mut() {
-            futures::ready!(fut.poll(cx)?)
+            futures::ready!(fut.poll(cx).map_err(User)?)
         }
 
         if let Some(item) = futures::ready!(proj.recver.poll_next(cx)) {
@@ -65,7 +66,7 @@ impl<T, P: Push<T> + 'static> Future for Fut<T, P> {
             cx.waker().wake_by_ref();
             Pending
         } else {
-            Ready(Err(RecvError.into()))
+            Ready(Err(Internal(RecvError.into())))
         }
     }
 }

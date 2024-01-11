@@ -8,7 +8,7 @@ pub struct Counter;
 impl Poll for Counter {
     type Item = usize;
 
-    async fn poll(&mut self, tx: channel::Sender<Self::Item>) -> PollOutput {
+    async fn poll(&mut self, tx: channel::Sender<Self::Item>) -> anyhow::Result<Infallible> {
         let mut count = 0;
         let mut timer = interval(Duration::from_millis(500));
 
@@ -48,7 +48,7 @@ impl Parity {
 impl Poll for Filter {
     type Item = Parity;
 
-    async fn poll(&mut self, tx: channel::Sender<Self::Item>) -> PollOutput {
+    async fn poll(&mut self, tx: channel::Sender<Self::Item>) -> anyhow::Result<Infallible> {
         let mut parity = Parity::Even;
         let mut timer = interval(Duration::from_millis(2500));
 
@@ -70,7 +70,7 @@ impl State<Parity> for Announcer {
 }
 
 impl Push<usize> for Announcer {
-    async fn push(&mut self, item: usize) -> PushOutput {
+    async fn push(&mut self, item: usize) -> anyhow::Result<()> {
         if self.0.is_even() && item % 2 == 0 {
             println!("even: {}", item);
         } else if !self.0.is_even() && item % 2 != 0 {
@@ -87,5 +87,5 @@ async fn main() {
     let (filter, parity) = poll(Filter);
     let debug = push(rx).to(Announcer::default()).with_state(parity);
 
-    let _ = all!(counter, filter, debug).await;
+    let _ = allt!(counter, filter, debug).await;
 }

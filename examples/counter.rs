@@ -6,7 +6,7 @@ pub struct Counter;
 impl Poll for Counter {
     type Item = usize;
 
-    async fn poll(&mut self, tx: ppio::channel::Sender<Self::Item>) -> PollOutput {
+    async fn poll(&mut self, tx: ppio::channel::Sender<Self::Item>) -> anyhow::Result<Infallible> {
         let mut count = 0;
         let mut timer = tokio::time::interval(tokio::time::Duration::from_secs(1));
 

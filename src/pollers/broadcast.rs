@@ -7,7 +7,8 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::channel::{bounded, Receiver, SendError, Sender};
-use crate::io::{Poll, PollOutput};
+use crate::io::Poll;
+use crate::Error::*;
 use crate::util::as_static_mut;
 
 pub struct Poller<P: Poll> {
@@ -28,7 +29,7 @@ impl<P: Poll + 'static> IntoFuture for Poller<P>
 where
     P::Item: Clone,
 {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
     type IntoFuture = Fut<P>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -44,7 +45,7 @@ where
 pin_project! {
     pub struct Fut<P: Poll> {
         #[pin]
-        fut: Option<BoxFuture<'static, PollOutput>>,
+        fut: Option<BoxFuture<'static, anyhow::Result<Infallible>>>,
         #[pin]
         recver: Option<Receiver<P::Item>>,
         poller: P,
@@ -56,7 +57,7 @@ impl<P: Poll + 'static> Future for Fut<P>
 where
     P::Item: Clone,
 {
-    type Output = Result<Infallible, anyhow::Error>;
+    type Output = Result<Infallible, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
@@ -74,14 +75,14 @@ where
         let recver = proj.recver.as_pin_mut().unwrap();
 
         // the future is always pending after this point
-        let _ = fut.poll(cx)?;
+        let _ = fut.poll(cx).map_err(User)?;
 
         if let Some(item) = futures::ready!(recver.poll_next(cx)) {
             proj.senders
                 .retain_mut(|sender| sender.try_send(item.clone()).is_ok());
 
             if proj.senders.is_empty() {
-                return Ready(Err(SendError(()).into()));
+                return Ready(Err(Internal(SendError(()).into())));
             }
         }
 

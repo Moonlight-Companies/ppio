@@ -6,10 +6,6 @@ use crate::channel::{unbounded, Receiver, self};
 use crate::pollers::{IntoPoller, Poller};
 use crate::pushers::EmptyPusher;
 
-// bikeshed
-pub type PollOutput = anyhow::Result<Infallible>;
-pub type PushOutput = anyhow::Result<()>;
-
 pub trait State<T> {
     fn update(&mut self, state: T);
 }
@@ -19,7 +15,7 @@ pub trait Poll {
     type Item: Send;
 
     /// Poll function
-    fn poll(&mut self, tx: channel::Sender<Self::Item>) -> impl Future<Output = PollOutput> + Send + '_;
+    fn poll(&mut self, tx: channel::Sender<Self::Item>) -> impl Future<Output = anyhow::Result<Infallible>> + Send + '_;
 }
 
 pub fn poll<P: Poll>(p: impl IntoPoller<P>) -> (Poller<P>, Receiver<P::Item>) {
@@ -29,7 +25,7 @@ pub fn poll<P: Poll>(p: impl IntoPoller<P>) -> (Poller<P>, Receiver<P::Item>) {
 }
 
 pub trait Push<T> {
-    fn push(&mut self, item: T) -> impl Future<Output = PushOutput> + Send + '_;
+    fn push(&mut self, item: T) -> impl Future<Output = anyhow::Result<()>> + Send + '_;
 }
 
 pub fn push<T>(rx: Receiver<T>) -> (EmptyPusher, Receiver<T>) {

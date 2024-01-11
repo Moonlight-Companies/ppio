@@ -7,7 +7,8 @@ use futures::Stream;
 use pin_project_lite::pin_project;
 
 use crate::channel::{Receiver, Sender, RecvError};
-use crate::io::{Poll, PollOutput, State};
+use crate::Error::*;
+use crate::io::{Poll, State};
 use crate::util::as_static_mut;
 
 pub struct Poller<S, P: Poll + State<S>> {
@@ -27,7 +28,7 @@ impl<S, P: Poll + State<S>> Poller<S, P> {
 }
 
 impl<S, P: Poll + State<S> + 'static> IntoFuture for Poller<S, P> {
-    type Output = PollOutput;
+    type Output = Result<Infallible, crate::Error>;
     type IntoFuture = Fut<S, P>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -46,7 +47,7 @@ pin_project! {
         P: State<S>,
     {
         #[pin]
-        fut: Option<BoxFuture<'static, PollOutput>>,
+        fut: Option<BoxFuture<'static, anyhow::Result<Infallible>>>,
         #[pin]
         recver: Receiver<S>,
         poller: P,
@@ -55,7 +56,7 @@ pin_project! {
 }
 
 impl<S, P: Poll + State<S> + 'static> Future for Fut<S, P> {
-    type Output = Result<Infallible, anyhow::Error>;
+    type Output = Result<Infallible, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let mut proj = self.project();
@@ -65,7 +66,7 @@ impl<S, P: Poll + State<S> + 'static> Future for Fut<S, P> {
                 proj.fut.set(None);
                 proj.poller.update(state);
             },
-            Ready(None) => return Ready(Err(RecvError.into())),
+            Ready(None) => return Ready(Err(Internal(RecvError.into()))),
             _ => (),
         }
 
@@ -76,6 +77,6 @@ impl<S, P: Poll + State<S> + 'static> Future for Fut<S, P> {
             proj.fut.set(Some(Box::pin(fut)));
         }
 
-        proj.fut.as_pin_mut().unwrap().poll(cx)
+        proj.fut.as_pin_mut().unwrap().poll(cx).map_err(User)
     }
 }

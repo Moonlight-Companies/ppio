@@ -5,7 +5,7 @@ struct Greeting;
 impl Poll for Greeting {
     type Item = &'static str;
 
-    async fn poll(&mut self, tx: ppio::channel::Sender<Self::Item>) -> PollOutput {
+    async fn poll(&mut self, tx: ppio::channel::Sender<Self::Item>) -> anyhow::Result<Infallible> {
         use tokio::time::{sleep, Duration};
 
         loop {
@@ -33,7 +33,7 @@ impl State<&'static str> for Greeter {
 impl Poll for Greeter {
     type Item = &'static str;
 
-    async fn poll(&mut self, tx: ppio::channel::Sender<Self::Item>) -> PollOutput {
+    async fn poll(&mut self, tx: ppio::channel::Sender<Self::Item>) -> anyhow::Result<Infallible> {
         use tokio::time::{sleep, Duration};
 
         if let Some(greeting) = self.0 {

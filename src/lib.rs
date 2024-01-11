@@ -16,39 +16,61 @@ pub mod prelude {
     pub use crate::pollers::*;
     pub use crate::pushers::*;
 
+    pub use std::convert::Infallible; 
+    pub use anyhow;
+
     pub use crate::{all, allt};
 }
 
-/// reexport for proc macro
-pub use tokio;
-
-#[macro_export]
-macro_rules! all {
-    ($($fut:expr),+ $(,)?) => {
-        async move {
-            $crate::tokio::select! {
-                biased;
-                $(err = async move { $fut.await } => err),+
-            }
-        }
-    };
+/// wraps anyhow::Error to allow the macro to determine whether the error should bubble up
+pub enum Error {
+    Internal(anyhow::Error),
+    User(anyhow::Error),
 }
 
-#[macro_export]
-macro_rules! allt {
-    ($($fut:expr),+ $(,)?) => {
-        async move {
-            $crate::tokio::select! {
-                biased;
-                $(
-                    err = tokio::spawn(async move { $fut.await }) => {
-                        match err {
-                            Ok(err) => err,
-                            Err(err) => Err(anyhow::Error::from(err)),
-                        }
-                    }
-                ),+
+pub mod macro_helpers {
+    use std::future::Future;
+    use std::convert::Infallible;
+
+    use futures::FutureExt;
+    
+    /// reexport for proc macro
+    pub use tokio;
+
+    pub fn internal_spawn<F>(fut: F) -> impl Future<Output = Result<Infallible, crate::Error>>
+    where
+        F: std::future::Future<Output = Result<Infallible, crate::Error>> + Send + 'static,
+    {
+        let jh = tokio::spawn(fut);
+
+        jh.map(|res| match res {
+            Ok(Err(e)) => Err(e),
+            Err(e) => Err(crate::Error::Internal(e.into())),
+            Ok(Ok(impossible)) => Ok(impossible) 
+        })
+    } 
+
+    #[macro_export]
+    macro_rules! all {
+        ($($fut:expr),+ $(,)?) => {
+            async move {
+                $crate::macro_helpers::tokio::select! {
+                    biased;
+                    $(Err($crate::Error::User(err)) = async move { $fut.await } => err),+
+                }
             }
         };
-    };
+    }
+
+    #[macro_export]
+    macro_rules! allt {
+        ($($fut:expr),+ $(,)?) => {
+            async move {
+                $crate::macro_helpers::tokio::select! {
+                    biased;
+                    $(Err($crate::Error::User(err)) = $crate::macro_helpers::internal_spawn(async move { $fut.await }) => err),+
+                }
+            };
+        };
+    }
 }
