@@ -56,7 +56,8 @@ impl<T, P: Push<T> + 'static> Future for Fut<T, P> {
         let mut proj = self.project();
 
         if let Some(fut) = proj.fut.as_mut().as_pin_mut() {
-            futures::ready!(fut.poll(cx).map_err(User)?)
+            futures::ready!(fut.poll(cx).map_err(User)?);
+            proj.fut.set(None);
         }
 
         if let Some(item) = futures::ready!(proj.recver.poll_next(cx)) {
